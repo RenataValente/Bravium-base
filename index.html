@@ -62,7 +62,7 @@ main{max-width:960px;margin:0 auto;padding:36px 24px}
 .result-text{font-size:15px;line-height:1.75;color:var(--text);white-space:pre-wrap;margin-bottom:20px}
 .materials-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
 .mat-list{display:flex;flex-direction:column;gap:8px}
-.mat-item{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1.5px solid var(--border);border-radius:12px;text-decoration:none;color:inherit;transition:border-color .2s,box-shadow .2s,background .2s;cursor:pointer}
+.mat-item{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1.5px solid var(--border);border-radius:12px;color:inherit;transition:border-color .2s,box-shadow .2s,background .2s;cursor:pointer}
 .mat-item:hover{border-color:var(--azul2);box-shadow:0 0 0 3px rgba(0,133,207,.08);background:#f7faff}
 .mat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
 .mat-icon.video{background:#fff3cd;color:#e65100}
@@ -143,7 +143,7 @@ main{max-width:960px;margin:0 auto;padding:36px 24px}
   </header>
 
   <main>
-    <div class="tabs" id="tabs-bar">
+    <div class="tabs">
       <button class="tab active" id="tab-consulta" onclick="mudarTab('consulta')">🔍 Consultar</button>
       <button class="tab" id="tab-admin" onclick="mudarTab('admin')" style="display:none">⚙️ Gerenciar</button>
     </div>
@@ -152,7 +152,7 @@ main{max-width:960px;margin:0 auto;padding:36px 24px}
       <div class="section-title">Olá! Como posso ajudar?</div>
       <div class="section-sub">Digite sua dúvida e a IA vai buscar o material certo para você.</div>
       <div class="search-card">
-        <div class="cat-chips" id="cat-chips">
+        <div class="cat-chips">
           <button class="chip active" onclick="filtrarCat(this,'')">Todas</button>
           <button class="chip" onclick="filtrarCat(this,'DEMAIS ASSUNTOS')">Demais Assuntos</button>
           <button class="chip" onclick="filtrarCat(this,'FRAUDE')">Fraude</button>
@@ -253,41 +253,33 @@ main{max-width:960px;margin:0 auto;padding:36px 24px}
 <script>
 const SENHA_AGENTE = 'bravium123';
 const SENHA_ADMIN  = 'bravium@adm';
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const STORAGE_KEY = 'bravium_materiais';
+const GEMINI_KEY   = 'AIzaSyAl19MvzRRhhev2pl0N48_2Ak3yy1DFq-M';
+const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY;
+const STORAGE_KEY  = 'bravium_materiais';
 
 let perfilAtual = '';
 let catFiltro = '';
 
-// ── localStorage helpers ──
 function getMateriais() {
-  try {
-    const d = localStorage.getItem(STORAGE_KEY);
-    return d ? JSON.parse(d) : [];
-  } catch(e) { return []; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); }
+  catch(e) { return []; }
 }
 
 function saveMateriais(lista) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(lista));
-    return true;
-  } catch(e) {
-    mostrarToast('Erro ao salvar. Verifique o armazenamento do navegador.', 'error');
-    return false;
-  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(lista)); return true; }
+  catch(e) { mostrarToast('Erro ao salvar.','error'); return false; }
 }
 
-// ── Login ──
 document.getElementById('senha-input').addEventListener('keydown', e => { if(e.key==='Enter') fazerLogin(); });
 
 function fazerLogin() {
   const s = document.getElementById('senha-input').value.trim();
-  if(s === SENHA_ADMIN)  { perfilAtual='admin';  iniciarApp(); }
+  if(s === SENHA_ADMIN)       { perfilAtual='admin';  iniciarApp(); }
   else if(s === SENHA_AGENTE) { perfilAtual='agente'; iniciarApp(); }
   else {
     const err = document.getElementById('login-error');
     err.style.display='block';
-    setTimeout(()=>err.style.display='none', 3000);
+    setTimeout(()=>err.style.display='none',3000);
   }
 }
 
@@ -315,7 +307,6 @@ function sair() {
   document.getElementById('pergunta-input').value='';
 }
 
-// ── Tabs ──
 function mudarTab(tab) {
   document.getElementById('tela-consulta').style.display = tab==='consulta'?'block':'none';
   document.getElementById('tela-admin').style.display    = tab==='admin'?'block':'none';
@@ -324,14 +315,12 @@ function mudarTab(tab) {
   if(tab==='admin') renderAdminList();
 }
 
-// ── Filtro categoria ──
 function filtrarCat(el, cat) {
   catFiltro = cat;
-  document.querySelectorAll('.cat-chips .chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.cat-chips .chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
 }
 
-// ── Consulta IA ──
 async function pergunta() {
   const q = document.getElementById('pergunta-input').value.trim();
   if(!q) return;
@@ -340,23 +329,23 @@ async function pergunta() {
   const loading = document.getElementById('loading');
   const resultCard = document.getElementById('result-card');
 
-  btn.disabled = true;
-  loading.style.display = 'flex';
-  resultCard.style.display = 'none';
+  btn.disabled=true;
+  loading.style.display='flex';
+  resultCard.style.display='none';
 
   const materiais = getMateriais();
   const filtrados = catFiltro ? materiais.filter(m=>m.categoria===catFiltro) : materiais;
 
-  if(filtrados.length === 0) {
-    loading.style.display = 'none';
-    btn.disabled = false;
-    document.getElementById('result-text').textContent = 'Não há materiais cadastrados ainda. Aguarde seu supervisor adicionar os conteúdos.';
-    document.getElementById('materiais-section').style.display = 'none';
-    resultCard.style.display = 'block';
+  if(filtrados.length===0) {
+    loading.style.display='none';
+    btn.disabled=false;
+    document.getElementById('result-text').textContent='Não há materiais cadastrados ainda. Aguarde seu supervisor adicionar os conteúdos.';
+    document.getElementById('materiais-section').style.display='none';
+    resultCard.style.display='block';
     return;
   }
 
-  const contexto = filtrados.map((m,i) => {
+  const contexto = filtrados.map((m,i)=>{
     let txt = `[Material ${i+1}] Categoria: ${m.categoria} | Tipo: ${m.tipo} | Título: ${m.titulo}\n`;
     if(m.descricao) txt += `Descrição: ${m.descricao}\n`;
     if(m.conteudo)  txt += `Conteúdo: ${m.conteudo}\n`;
@@ -364,7 +353,7 @@ async function pergunta() {
     return txt;
   }).join('\n---\n');
 
-  const prompt = `Você é o assistente interno de conhecimento do time de atendimento da Bravium. Responda dúvidas dos agentes com base apenas nos materiais abaixo.
+  const prompt = `Você é o assistente interno do time de atendimento da Bravium. Responda dúvidas com base apenas nos materiais abaixo.
 
 MATERIAIS:
 ${contexto}
@@ -379,28 +368,25 @@ INSTRUÇÕES:
 - Não invente informações. Máximo 5 linhas.`;
 
   try {
-    const resp = await fetch(API_URL, {
+    const resp = await fetch(GEMINI_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:prompt}]
+        contents:[{parts:[{text: prompt}]}]
       })
     });
     const data = await resp.json();
-    const texto = data.content?.[0]?.text || 'Não foi possível processar a resposta.';
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Não foi possível processar a resposta.';
 
     const mencionados = [];
-    filtrados.forEach((m,i) => {
-      if(texto.includes(`Material ${i+1}`) || texto.toLowerCase().includes(m.titulo.toLowerCase().substring(0,15))) {
+    filtrados.forEach((m,i)=>{
+      if(texto.includes(`Material ${i+1}`) || texto.toLowerCase().includes(m.titulo.toLowerCase().substring(0,15)))
         mencionados.push(m);
-      }
     });
     if(mencionados.length===0 && !texto.includes('Não encontrei')) {
       const qWords = q.toLowerCase().split(' ').filter(w=>w.length>3);
-      filtrados.forEach(m => {
-        const hay = (m.titulo+' '+m.descricao+' '+m.conteudo).toLowerCase();
+      filtrados.forEach(m=>{
+        const hay=(m.titulo+' '+m.descricao+' '+m.conteudo).toLowerCase();
         if(qWords.some(w=>hay.includes(w))) mencionados.push(m);
       });
     }
@@ -408,22 +394,22 @@ INSTRUÇÕES:
     document.getElementById('result-text').textContent = texto;
     const matsSection = document.getElementById('materiais-section');
     const matList = document.getElementById('mat-list');
-    matList.innerHTML = '';
+    matList.innerHTML='';
 
     if(mencionados.length>0 && !texto.includes('Não encontrei')) {
       const icones={video:'🎬',doc:'📄',pdf:'📕',link:'🔗'};
       const classes={video:'video',doc:'doc',pdf:'pdf',link:'link'};
-      mencionados.slice(0,4).forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'mat-item';
-        div.innerHTML = `
+      mencionados.slice(0,4).forEach(m=>{
+        const div=document.createElement('div');
+        div.className='mat-item';
+        div.innerHTML=`
           <div class="mat-icon ${classes[m.tipo]||'link'}">${icones[m.tipo]||'📎'}</div>
           <div class="mat-info">
             <div class="mat-title">${m.titulo}</div>
             <div class="mat-cat">${m.categoria}</div>
           </div>
           <span style="color:var(--azul2);font-size:18px">→</span>`;
-        if(m.link) div.onclick = ()=>window.open(m.link,'_blank');
+        if(m.link) div.onclick=()=>window.open(m.link,'_blank');
         else div.style.cursor='default';
         matList.appendChild(div);
       });
@@ -433,7 +419,7 @@ INSTRUÇÕES:
     }
     resultCard.style.display='block';
   } catch(err) {
-    document.getElementById('result-text').textContent='Erro ao conectar com a IA. Tente novamente em instantes.';
+    document.getElementById('result-text').textContent='Erro ao conectar com a IA. Verifique a chave Gemini no arquivo.';
     document.getElementById('materiais-section').style.display='none';
     resultCard.style.display='block';
   }
@@ -442,12 +428,11 @@ INSTRUÇÕES:
   btn.disabled=false;
 }
 
-// ── Admin form ──
 function atualizarFormTipo() {
-  const tipo = document.getElementById('add-tipo').value;
-  document.getElementById('campo-conteudo').style.display = tipo==='doc'?'block':'none';
-  document.getElementById('campo-desc').style.display     = tipo==='doc'?'none':'block';
-  document.getElementById('campo-link').style.display     = tipo==='doc'?'none':'block';
+  const tipo=document.getElementById('add-tipo').value;
+  document.getElementById('campo-conteudo').style.display=tipo==='doc'?'block':'none';
+  document.getElementById('campo-desc').style.display=tipo==='doc'?'none':'block';
+  document.getElementById('campo-link').style.display=tipo==='doc'?'none':'block';
 }
 
 function adicionarMaterial() {
@@ -465,11 +450,10 @@ function adicionarMaterial() {
 
   const lista = getMateriais();
   lista.push({
-    id: Date.now(),
-    categoria: cat, tipo, titulo,
-    link:     tipo!=='doc' ? link : '',
-    descricao: tipo!=='doc' ? desc : '',
-    conteudo:  tipo==='doc' ? cont : ''
+    id:Date.now(), categoria:cat, tipo, titulo,
+    link:     tipo!=='doc'?link:'',
+    descricao:tipo!=='doc'?desc:'',
+    conteudo: tipo==='doc'?cont:''
   });
 
   if(saveMateriais(lista)) {
@@ -485,20 +469,17 @@ function adicionarMaterial() {
 
 function deletarMaterial(id) {
   if(!confirm('Remover este material?')) return;
-  const lista = getMateriais().filter(m=>m.id!==id);
-  if(saveMateriais(lista)) {
-    mostrarToast('Material removido.','success');
-    renderAdminList();
-  }
+  const lista=getMateriais().filter(m=>m.id!==id);
+  if(saveMateriais(lista)) { mostrarToast('Material removido.','success'); renderAdminList(); }
 }
 
 function renderAdminList() {
-  const lista = getMateriais();
-  const cat   = document.getElementById('filter-cat-admin')?.value||'';
-  const filtrados = cat ? lista.filter(m=>m.categoria===cat) : lista;
-  const el = document.getElementById('mat-admin-list');
+  const lista=getMateriais();
+  const cat=document.getElementById('filter-cat-admin')?.value||'';
+  const filtrados=cat?lista.filter(m=>m.categoria===cat):lista;
+  const el=document.getElementById('mat-admin-list');
   if(!el) return;
-  if(filtrados.length===0) {
+  if(filtrados.length===0){
     el.innerHTML='<div class="empty"><div class="icon">📭</div><p>Nenhum material cadastrado ainda.</p></div>';
     return;
   }
@@ -517,10 +498,9 @@ function renderAdminList() {
     </div>`).join('');
 }
 
-function mostrarToast(msg, tipo='') {
-  const t = document.getElementById('toast');
-  t.textContent=msg;
-  t.className='toast '+tipo;
+function mostrarToast(msg,tipo='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast '+tipo;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),3000);
 }
